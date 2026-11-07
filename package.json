@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "description": "Shiyi - Personal AI Memory",
-  "main": "main.cjs",
+  "main": "./out/main/index.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron-vite preview",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
@@ -18,6 +21,7 @@
     "vite": "^8.3.6"
   },
   "dependencies": {
+    "lucide-react": "^1.70.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   }
