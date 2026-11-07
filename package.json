@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "shiyi-go",
   "version": "0.1.0",
   "private": true,
@@ -8,6 +8,17 @@
     "start": "electron ."
   },
   "devDependencies": {
-    "electron": "44.10.2"
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "electron": "44.10.2",
+    "electron-vite": "6.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   }
 }
