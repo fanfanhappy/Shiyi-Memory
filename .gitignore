@@ -1,0 +1,17 @@
+﻿node_modules/
+dist/
+out/
+release/
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+data/
+user-data/
+backups/
+models/
+.cache/
+logs/
+*.log

@@ -1,0 +1,13 @@
+﻿{
+  "name": "shiyi-go",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shiyi - Personal AI Memory",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "44.10.2"
+  }
+}
