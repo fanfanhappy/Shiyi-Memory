@@ -5,9 +5,7 @@ import {
   Brain,
   Clock3,
   Copy,
-  Cpu,
   Database,
-  FileText,
   Folder,
   Layers,
   MessageCircle,
@@ -24,6 +22,13 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react";
+
+import MemoryCenter from "./pages/MemoryCenter";
+import { CATEGORY_LABELS, formatRelativeTime } from "./memoryLabels";
+import type {
+  MemoryContentCategoryDto,
+  MemoryDto
+} from "../../shared/ipc";
 
 type Page =
   | "chat"
@@ -105,35 +110,19 @@ const initialMessages: Message[] = [
   }
 ];
 
-const memories: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  time: string;
-  color: string;
-}[] = [
-  {
-    icon: Folder,
-    title: "拾忆项目",
-    description: "你的个人 AI 记忆系统项目",
-    time: "更新于 2 天前",
-    color: "blue"
-  },
-  {
-    icon: Cpu,
-    title: "技术架构",
-    description: "Local / Automatic / SQLite",
-    time: "更新于 2 天前",
-    color: "purple"
-  },
-  {
-    icon: FileText,
-    title: "项目目标",
-    description: "打造自然、连续的个人记忆助手",
-    time: "更新于 5 天前",
-    color: "cyan"
-  }
-];
+const memoryIcons: Record<
+  MemoryContentCategoryDto,
+  { icon: LucideIcon; color: string }
+> = {
+  general: { icon: Brain, color: "blue" },
+  fact: { icon: Database, color: "blue" },
+  preference: { icon: Sparkles, color: "purple" },
+  experience: { icon: Clock3, color: "cyan" },
+  project: { icon: Folder, color: "blue" },
+  person: { icon: UserRound, color: "purple" },
+  goal: { icon: Layers, color: "cyan" },
+  event: { icon: Clock3, color: "purple" }
+};
 
 function App() {
   const [activePage, setActivePage] = useState<Page>("chat");
@@ -142,6 +131,12 @@ function App() {
   const [messages, setMessages] = useState(initialMessages);
   const [darkMode, setDarkMode] = useState(false);
 
+  const [recentMemories, setRecentMemories] = useState<MemoryDto[]>([]);
+  const [memoryTotal, setMemoryTotal] = useState(0);
+  const [memoryReady, setMemoryReady] = useState(false);
+  const [memoryFailed, setMemoryFailed] = useState(false);
+  const [memoryRevision, setMemoryRevision] = useState(0);
+
   useEffect(() => {
     if (window.shiyi?.getAppVersion) {
       window.shiyi.getAppVersion()
@@ -149,6 +144,40 @@ function App() {
         .catch(() => setVersion("本地模式"));
     }
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecentMemories() {
+      const api = window.shiyi?.memory;
+
+      if (!api) return;
+
+      const result = await api.list({
+        pageSize: 3,
+        sortBy: "updatedAt",
+        sortDirection: "desc"
+      });
+
+      if (cancelled) return;
+
+      if (result.ok) {
+        setRecentMemories(result.data.items);
+        setMemoryTotal(result.data.totalItems);
+        setMemoryFailed(false);
+      } else {
+        setMemoryFailed(true);
+      }
+
+      setMemoryReady(true);
+    }
+
+    void loadRecentMemories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [memoryRevision]);
 
   function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -172,6 +201,10 @@ function App() {
     navItems.find((item) => item.id === activePage)?.label
     ?? pageInfo[activePage as Exclude<Page, "chat">]?.title
     ?? "设置";
+
+  const memoryCategories = Array.from(
+    new Set(recentMemories.map((memory) => memory.contentCategory))
+  );
 
   return (
     <div className={`app-root ${darkMode ? "dark-mode" : ""}`}>
@@ -401,6 +434,10 @@ function App() {
                 </p>
               </div>
             </>
+          ) : activePage === "memory" ? (
+            <MemoryCenter
+              onChanged={() => setMemoryRevision((current) => current + 1)}
+            />
           ) : (
             <section className="module-page">
               <div className="module-hero">
@@ -450,22 +487,35 @@ function App() {
               </span>
               <strong>相关记忆</strong>
             </div>
-            <span className="count-badge">3</span>
+            <span className="count-badge">
+              {memoryTotal > 99 ? "99+" : memoryTotal}
+            </span>
           </div>
 
           <div className="memory-cards">
-            {memories.map((memory) => (
-              <div className="memory-card" key={memory.title}>
-                <div className={`memory-card-icon ${memory.color}`}>
-                  <memory.icon size={17} strokeWidth={1.8} />
+            {recentMemories.map((memory) => {
+              const visual = memoryIcons[memory.contentCategory];
+              const MemoryIcon = visual.icon;
+
+              return (
+                <div className="memory-card" key={memory.id}>
+                  <div className={`memory-card-icon ${visual.color}`}>
+                    <MemoryIcon size={17} strokeWidth={1.8} />
+                  </div>
+                  <div className="memory-card-content">
+                    <strong>{CATEGORY_LABELS[memory.contentCategory]}</strong>
+                    <p>{memory.content}</p>
+                    <small>{formatRelativeTime(memory.updatedAt)}</small>
+                  </div>
                 </div>
-                <div className="memory-card-content">
-                  <strong>{memory.title}</strong>
-                  <p>{memory.description}</p>
-                  <small>{memory.time}</small>
-                </div>
-              </div>
-            ))}
+              );
+            })}
+
+            {memoryReady && recentMemories.length === 0 && (
+              <p className="context-empty">
+                还没有记忆，去记忆中心写一条试试。
+              </p>
+            )}
           </div>
 
           <div className="context-divider" />
@@ -475,23 +525,27 @@ function App() {
               <span>
                 <Layers size={17} strokeWidth={1.8} />
               </span>
-              <strong>相关实体</strong>
+              <strong>记忆类型</strong>
             </div>
-            <span className="count-badge">4</span>
+            <span className="count-badge">{memoryCategories.length}</span>
           </div>
 
           <div className="entity-grid">
-            {[
-              { icon: Folder, name: "拾忆项目" },
-              { icon: Database, name: "SQLite" },
-              { icon: Cpu, name: "Electron" },
-              { icon: Layers, name: "记忆机制" }
-            ].map(({ icon: EntityIcon, name }) => (
-              <div className="entity-chip" key={name}>
-                <EntityIcon size={14} strokeWidth={1.8} />
-                {name}
-              </div>
-            ))}
+            {memoryCategories.length === 0 && (
+              <p className="context-empty">暂无分类</p>
+            )}
+
+            {memoryCategories.map((category) => {
+              const visual = memoryIcons[category];
+              const CategoryIcon = visual.icon;
+
+              return (
+                <div className="entity-chip" key={category}>
+                  <CategoryIcon size={14} strokeWidth={1.8} />
+                  {CATEGORY_LABELS[category]}
+                </div>
+              );
+            })}
           </div>
 
           <div className="context-divider" />
@@ -518,7 +572,11 @@ function App() {
 
           <div className="context-footer">
             <span className="online-dot" />
-            本地记忆空间 · 演示数据
+            {memoryFailed
+              ? "本地记忆空间 · 读取失败"
+              : memoryReady
+                ? "本地记忆空间 · 已连接 SQLite"
+                : "本地记忆空间 · 连接中"}
           </div>
         </aside>
       </div>

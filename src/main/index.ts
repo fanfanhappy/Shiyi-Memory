@@ -5,6 +5,7 @@ import {
   closeDatabase,
   getDatabasePath
 } from "./database/connection";
+import { registerMemoryIpc } from "./ipc/memory.ipc";
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -42,13 +43,16 @@ app.whenReady().then(() => {
     ? join(app.getPath("userData"), "data")
     : join(app.getAppPath(), "data-dev");
 
-  initializeDatabase(databaseDirectory);
+  const database = initializeDatabase(databaseDirectory);
 
   console.info("[Shiyi] Database path:", getDatabasePath());
 
   console.info(
     `[Shiyi] Environment: ${app.isPackaged ? "production" : "development"}`
   );
+
+  // 记忆通道必须在数据库就绪后注册
+  registerMemoryIpc(database);
 
   ipcMain.handle("shiyi:get-app-version", () => app.getVersion());
 
