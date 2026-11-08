@@ -1,4 +1,4 @@
-﻿export const INITIAL_SCHEMA = `
+export const INITIAL_SCHEMA = `
 CREATE TABLE IF NOT EXISTS memories (
   id TEXT PRIMARY KEY,
   content TEXT NOT NULL CHECK(length(trim(content)) > 0),
@@ -101,4 +101,83 @@ ON relations(source_entity_id);
 
 CREATE INDEX IF NOT EXISTS idx_memory_entities_entity
 ON memory_entities(entity_id);
+`;
+
+export const MEMORY_HISTORY_SCHEMA = `
+ALTER TABLE memories
+ADD COLUMN version INTEGER NOT NULL DEFAULT 1
+CHECK (version >= 1);
+
+CREATE TABLE IF NOT EXISTS memory_versions (
+  id TEXT PRIMARY KEY,
+  memory_id TEXT NOT NULL,
+  version INTEGER NOT NULL CHECK(version >= 1),
+
+  content TEXT NOT NULL,
+  summary TEXT,
+  memory_type TEXT NOT NULL,
+  importance INTEGER NOT NULL,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL,
+  metadata_json TEXT NOT NULL,
+
+  change_reason TEXT,
+  created_at TEXT NOT NULL,
+
+  FOREIGN KEY(memory_id)
+    REFERENCES memories(id)
+    ON DELETE CASCADE,
+
+  UNIQUE(memory_id, version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_versions_memory
+ON memory_versions(memory_id, version DESC);
+
+CREATE TABLE IF NOT EXISTS memory_audit (
+  id TEXT PRIMARY KEY,
+  memory_id TEXT,
+  operation TEXT NOT NULL,
+  old_value TEXT,
+  new_value TEXT,
+  reason TEXT,
+  created_at TEXT NOT NULL,
+
+  FOREIGN KEY(memory_id)
+    REFERENCES memories(id)
+    ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_audit_memory
+ON memory_audit(memory_id, created_at DESC);
+
+-- 为升级前已经存在的记忆建立初始快照
+INSERT INTO memory_versions (
+  id,
+  memory_id,
+  version,
+  content,
+  summary,
+  memory_type,
+  importance,
+  source,
+  status,
+  metadata_json,
+  change_reason,
+  created_at
+)
+SELECT
+  lower(hex(randomblob(16))),
+  id,
+  version,
+  content,
+  summary,
+  memory_type,
+  importance,
+  source,
+  status,
+  metadata_json,
+  'M4.2 初始历史快照',
+  strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+FROM memories;
 `;

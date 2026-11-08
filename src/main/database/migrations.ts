@@ -1,7 +1,32 @@
-﻿import type { DatabaseSync } from "node:sqlite";
-import { INITIAL_SCHEMA } from "./schema";
+import type { DatabaseSync } from "node:sqlite";
+import {
+  INITIAL_SCHEMA,
+  MEMORY_HISTORY_SCHEMA
+} from "./schema";
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
+
+function applyMigration(
+  db: DatabaseSync,
+  version: number,
+  schema: string
+): void {
+  db.exec("BEGIN IMMEDIATE");
+
+  try {
+    db.exec(schema);
+
+    db.prepare(`
+      INSERT INTO schema_migrations (version, applied_at)
+      VALUES (?, ?)
+    `).run(version, new Date().toISOString());
+
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
 
 export function runMigrations(db: DatabaseSync): void {
   db.exec(`
@@ -24,21 +49,17 @@ export function runMigrations(db: DatabaseSync): void {
     );
   }
 
+  // V1：基础数据库
   if (currentVersion < 1) {
-    db.exec("BEGIN IMMEDIATE");
-
-    try {
-      db.exec(INITIAL_SCHEMA);
-
-      db.prepare(`
-        INSERT INTO schema_migrations (version, applied_at)
-        VALUES (?, ?)
-      `).run(1, new Date().toISOString());
-
-      db.exec("COMMIT");
-    } catch (error) {
-      db.exec("ROLLBACK");
-      throw error;
-    }
+    applyMigration(db, 1, INITIAL_SCHEMA);
   }
+
+  // V2：记忆版本管理与审计
+  if (currentVersion < 2) {
+    applyMigration(db, 2, MEMORY_HISTORY_SCHEMA);
+  }
+
+  console.info(
+    `[Shiyi] Database schema version: ${CURRENT_SCHEMA_VERSION}`
+  );
 }
