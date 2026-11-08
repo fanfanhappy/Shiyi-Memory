@@ -27,6 +27,39 @@ export const STATUS_LABELS: Record<MemoryStatusDto, string> = {
   deleted: "已删除"
 };
 
+export const SOURCE_LABELS: Record<string, string> = {
+  manual: "手动写入",
+  conversation: "对话提取",
+  import: "导入",
+  system: "系统"
+};
+
+export const SCOPE_LABELS: Record<string, string> = {
+  global: "全局",
+  user: "用户",
+  project: "项目",
+  entity: "实体",
+  session: "会话"
+};
+
+export const FACT_KIND_LABELS: Record<string, string> = {
+  fact: "事实",
+  inference: "推断",
+  hypothesis: "假设"
+};
+
+export const AUDIT_LABELS: Record<string, string> = {
+  create: "创建",
+  update: "更新",
+  archive: "归档",
+  restore: "恢复",
+  soft_delete: "删除",
+  access: "访问",
+  merge: "合并",
+  supersede: "替代",
+  reject: "拒绝"
+};
+
 export function formatRelativeTime(iso: string): string {
   const timestamp = Date.parse(iso);
 

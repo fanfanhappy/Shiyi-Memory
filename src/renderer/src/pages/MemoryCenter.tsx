@@ -7,18 +7,25 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 
 import type {
+  MemoryAuditDto,
   MemoryContentCategoryDto,
   MemoryDto,
-  MemoryListQueryDto
+  MemoryListQueryDto,
+  MemoryVersionDto
 } from "../../../shared/ipc";
 
 import {
+  AUDIT_LABELS,
   CATEGORY_LABELS,
   COGNITIVE_LABELS,
+  FACT_KIND_LABELS,
+  SCOPE_LABELS,
+  SOURCE_LABELS,
   STATUS_LABELS,
   formatRelativeTime
 } from "../memoryLabels";
@@ -64,6 +71,62 @@ export default function MemoryCenter({ onChanged }: MemoryCenterProps) {
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [revision, setRevision] = useState(0);
+
+  const [detail, setDetail] = useState<MemoryDto | null>(null);
+  const [detailTab, setDetailTab] = useState<"versions" | "audit">(
+    "versions"
+  );
+  const [versions, setVersions] = useState<MemoryVersionDto[]>([]);
+  const [audit, setAudit] = useState<MemoryAuditDto[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const closeDetail = useCallback(() => {
+    setDetail(null);
+    setDetailError(null);
+  }, []);
+
+  useEffect(() => {
+    if (!detail) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeDetail();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [detail, closeDetail]);
+
+  async function openDetail(memory: MemoryDto) {
+    setDetail(memory);
+    setDetailTab("versions");
+    setDetailLoading(true);
+    setDetailError(null);
+    setVersions([]);
+    setAudit([]);
+
+    const [versionResult, auditResult] = await Promise.all([
+      window.shiyi.memory.versions(memory.id, { pageSize: 50 }),
+      window.shiyi.memory.audit(memory.id, { pageSize: 50 })
+    ]);
+
+    if (versionResult.ok) {
+      setVersions(versionResult.data.items);
+    } else {
+      setDetailError(versionResult.error.message);
+    }
+
+    if (auditResult.ok) {
+      setAudit(auditResult.data.items);
+    } else {
+      setDetailError(auditResult.error.message);
+    }
+
+    setDetailLoading(false);
+  }
 
   const reload = useCallback(() => {
     setRevision((current) => current + 1);
@@ -300,7 +363,18 @@ export default function MemoryCenter({ onChanged }: MemoryCenterProps) {
       ) : (
         <div className="memory-list">
           {items.map((memory) => (
-            <article className="memory-entry" key={memory.id}>
+            <article
+              className="memory-entry"
+              key={memory.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => void openDetail(memory)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void openDetail(memory);
+                }
+              }}
+            >
               <div className="memory-entry-head">
                 <span className={`memory-chip ${memory.contentCategory}`}>
                   {CATEGORY_LABELS[memory.contentCategory]}
@@ -335,7 +409,11 @@ export default function MemoryCenter({ onChanged }: MemoryCenterProps) {
                 <span>v{memory.version}</span>
                 <span>{formatRelativeTime(memory.updatedAt)}</span>
 
-                <div className="memory-entry-actions">
+                <div
+                  className="memory-entry-actions"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
                   {memory.status === "active" && (
                     <button
                       type="button"
@@ -373,6 +451,164 @@ export default function MemoryCenter({ onChanged }: MemoryCenterProps) {
               </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {detail && (
+        <div
+          className="memory-detail-backdrop"
+          role="presentation"
+          onClick={closeDetail}
+        >
+          <aside
+            className="memory-detail"
+            role="dialog"
+            aria-modal="true"
+            aria-label="记忆详情"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className="memory-detail-head">
+              <div className="memory-detail-tags">
+                <span className={`memory-chip ${detail.contentCategory}`}>
+                  {CATEGORY_LABELS[detail.contentCategory]}
+                </span>
+                <span className={`memory-state ${detail.status}`}>
+                  {STATUS_LABELS[detail.status]}
+                </span>
+                <span className="memory-detail-version">
+                  v{detail.version}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className="memory-detail-close"
+                onClick={closeDetail}
+                aria-label="关闭详情"
+              >
+                <X size={16} />
+              </button>
+            </header>
+
+            <p className="memory-detail-content">{detail.content}</p>
+
+            <dl className="memory-detail-meta">
+              <div>
+                <dt>认知类型</dt>
+                <dd>
+                  {detail.metadata.cognitiveType
+                    ? COGNITIVE_LABELS[detail.metadata.cognitiveType]
+                    : "未标注"}
+                </dd>
+              </div>
+              <div>
+                <dt>作用域</dt>
+                <dd>
+                  {detail.metadata.scope
+                    ? SCOPE_LABELS[detail.metadata.scope]
+                    : "未标注"}
+                  {detail.metadata.scopeId
+                    ? ` · ${detail.metadata.scopeId}`
+                    : ""}
+                </dd>
+              </div>
+              <div>
+                <dt>事实等级</dt>
+                <dd>
+                  {detail.metadata.factKind
+                    ? FACT_KIND_LABELS[detail.metadata.factKind]
+                    : "未标注"}
+                </dd>
+              </div>
+              <div>
+                <dt>置信度</dt>
+                <dd>
+                  {typeof detail.metadata.confidence === "number"
+                    ? detail.metadata.confidence.toFixed(2)
+                    : "未标注"}
+                </dd>
+              </div>
+              <div>
+                <dt>来源</dt>
+                <dd>{SOURCE_LABELS[detail.source] ?? detail.source}</dd>
+              </div>
+              <div>
+                <dt>更新时间</dt>
+                <dd>
+                  {new Date(detail.updatedAt).toLocaleString("zh-CN")}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="memory-detail-tabs">
+              <button
+                type="button"
+                className={detailTab === "versions" ? "active" : ""}
+                onClick={() => setDetailTab("versions")}
+              >
+                版本历史 · {versions.length}
+              </button>
+              <button
+                type="button"
+                className={detailTab === "audit" ? "active" : ""}
+                onClick={() => setDetailTab("audit")}
+              >
+                审计记录 · {audit.length}
+              </button>
+            </div>
+
+            {detailError && (
+              <div className="memory-error" role="alert">
+                {detailError}
+              </div>
+            )}
+
+            {detailLoading ? (
+              <p className="memory-detail-loading">正在读取历史…</p>
+            ) : detailTab === "versions" ? (
+              versions.length === 0 ? (
+                <p className="memory-detail-loading">暂无版本记录。</p>
+              ) : (
+                <ol className="memory-timeline">
+                  {versions.map((version) => (
+                    <li key={version.id}>
+                      <div className="memory-timeline-head">
+                        <strong>v{version.version}</strong>
+                        <span>
+                          {new Date(version.createdAt).toLocaleString(
+                            "zh-CN"
+                          )}
+                        </span>
+                      </div>
+                      <p>{version.content}</p>
+                      <small>
+                        {version.changeReason ?? "无变更说明"} ·{" "}
+                        {STATUS_LABELS[version.status]}
+                      </small>
+                    </li>
+                  ))}
+                </ol>
+              )
+            ) : audit.length === 0 ? (
+              <p className="memory-detail-loading">暂无审计记录。</p>
+            ) : (
+              <ol className="memory-timeline">
+                {audit.map((entry) => (
+                  <li key={entry.id}>
+                    <div className="memory-timeline-head">
+                      <strong>
+                        {AUDIT_LABELS[entry.operation] ?? entry.operation}
+                      </strong>
+                      <span>
+                        {new Date(entry.createdAt).toLocaleString("zh-CN")}
+                      </span>
+                    </div>
+                    <small>{entry.reason ?? "无备注"}</small>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </aside>
         </div>
       )}
     </section>
