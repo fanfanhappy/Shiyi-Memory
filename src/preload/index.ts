@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import {
+  CONVERSATION_IPC,
   MEMORY_IPC,
+  type ConversationApi,
   type MemoryApi
 } from "../shared/ipc";
 
@@ -26,12 +28,28 @@ const memoryApi: MemoryApi = {
   audit: (id, query) => ipcRenderer.invoke(MEMORY_IPC.audit, id, query)
 };
 
+const conversationApi: ConversationApi = {
+  list: (query) => ipcRenderer.invoke(CONVERSATION_IPC.list, query),
+
+  create: (input) => ipcRenderer.invoke(CONVERSATION_IPC.create, input),
+
+  messages: (id, query) =>
+    ipcRenderer.invoke(CONVERSATION_IPC.messages, id, query),
+
+  append: (input) => ipcRenderer.invoke(CONVERSATION_IPC.append, input),
+
+  archive: (input) =>
+    ipcRenderer.invoke(CONVERSATION_IPC.archive, input)
+};
+
 const shiyiAPI = {
   getAppVersion: (): Promise<string> => {
     return ipcRenderer.invoke("shiyi:get-app-version");
   },
 
-  memory: memoryApi
+  memory: memoryApi,
+
+  conversation: conversationApi
 };
 
 contextBridge.exposeInMainWorld("shiyi", shiyiAPI);

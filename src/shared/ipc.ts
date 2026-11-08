@@ -1,14 +1,19 @@
-﻿/**
+/**
  * Shiyi IPC Contract
  *
- * M4.3
+ * M4.3 / M5.1
  *
- * Renderer / Preload / Main 涔嬮棿鍞竴鐨勭被鍨嬪绾︺€? * 杩欓噷鍙畾涔夊彲搴忓垪鍖栫殑 DTO锛屼笉渚濊禆涓昏繘绋嬬殑棰嗗煙妯″瀷锛? * 閬垮厤 Renderer 鐩存帴寮曠敤鏁版嵁搴撳眰浠ｇ爜銆? *
- * 鎵€鏈夐€氶亾閮借繑鍥炵粺涓€淇″皝锛? *   { ok: true, data } | { ok: false, error }
- * 涓昏繘绋嬩笉浼氭妸寮傚父鍫嗘爤鎴?SQL 缁嗚妭閫忎紶缁欑晫闈€? */
+ * Renderer / Preload / Main 之间唯一的类型契约。
+ * 这里只定义可序列化的 DTO，不依赖主进程的领域模型，
+ * 避免 Renderer 直接引用数据库层代码。
+ *
+ * 所有通道都返回统一信封：
+ *   { ok: true, data } | { ok: false, error }
+ * 主进程不会把异常堆栈或 SQL 细节透传给界面。
+ */
 
 // ============================================================
-// 1. IPC 閫氶亾
+// 1. IPC 通道
 // ============================================================
 
 export const MEMORY_IPC = {
@@ -23,29 +28,37 @@ export const MEMORY_IPC = {
   audit: "shiyi:memory:audit"
 } as const;
 
+export const CONVERSATION_IPC = {
+  list: "shiyi:conversation:list",
+  create: "shiyi:conversation:create",
+  messages: "shiyi:conversation:messages",
+  append: "shiyi:conversation:append",
+  archive: "shiyi:conversation:archive"
+} as const;
+
 // ============================================================
-// 2. 缁撴灉淇″皝涓庨敊璇爜
+// 2. 结果信封与错误码
 // ============================================================
 
-export type MemoryIpcErrorCode =
+export type IpcErrorCode =
   | "VALIDATION_ERROR"
   | "NOT_FOUND"
   | "VERSION_CONFLICT"
   | "INVALID_STATE"
   | "INTERNAL_ERROR";
 
-export interface MemoryIpcError {
-  code: MemoryIpcErrorCode;
+export interface IpcError {
+  code: IpcErrorCode;
   message: string;
   field?: string;
 }
 
-export type MemoryIpcResult<T> =
+export type IpcResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: MemoryIpcError };
+  | { ok: false; error: IpcError };
 
 // ============================================================
-// 3. 鏋氫妇
+// 3. 枚举
 // ============================================================
 
 export type MemoryCognitiveTypeDto =
@@ -95,7 +108,7 @@ export type MemoryAuditOperationDto =
   | "reject";
 
 // ============================================================
-// 4. DTO
+// 4. Memory DTO
 // ============================================================
 
 export interface MemoryMetadataDto {
@@ -164,7 +177,7 @@ export interface PageDto<T> {
 }
 
 // ============================================================
-// 5. 璇锋眰杞借嵎
+// 5. Memory 请求载荷
 // ============================================================
 
 export interface PaginationDto {
@@ -226,43 +239,94 @@ export interface MemoryLifecycleDto {
 }
 
 // ============================================================
-// 6. 鏆撮湶缁?Renderer 鐨?API
+// 6. Memory API
 // ============================================================
 
 export interface MemoryApi {
   list(
     query?: MemoryListQueryDto
-  ): Promise<MemoryIpcResult<PageDto<MemoryDto>>>;
+  ): Promise<IpcResult<PageDto<MemoryDto>>>;
 
-  get(id: string): Promise<MemoryIpcResult<MemoryDto>>;
+  get(id: string): Promise<IpcResult<MemoryDto>>;
 
   create(
     input: MemoryCreateDto
-  ): Promise<MemoryIpcResult<MemoryDto>>;
+  ): Promise<IpcResult<MemoryDto>>;
 
   update(
     input: MemoryUpdateDto
-  ): Promise<MemoryIpcResult<MemoryDto>>;
+  ): Promise<IpcResult<MemoryDto>>;
 
   archive(
     input: MemoryLifecycleDto
-  ): Promise<MemoryIpcResult<MemoryDto>>;
+  ): Promise<IpcResult<MemoryDto>>;
 
   restore(
     input: MemoryLifecycleDto
-  ): Promise<MemoryIpcResult<MemoryDto>>;
+  ): Promise<IpcResult<MemoryDto>>;
 
   remove(
     input: MemoryLifecycleDto
-  ): Promise<MemoryIpcResult<MemoryDto>>;
+  ): Promise<IpcResult<MemoryDto>>;
 
   versions(
     id: string,
     query?: PaginationDto
-  ): Promise<MemoryIpcResult<PageDto<MemoryVersionDto>>>;
+  ): Promise<IpcResult<PageDto<MemoryVersionDto>>>;
 
   audit(
     id: string,
     query?: PaginationDto
-  ): Promise<MemoryIpcResult<PageDto<MemoryAuditDto>>>;
+  ): Promise<IpcResult<PageDto<MemoryAuditDto>>>;
+}
+
+// ============================================================
+// 7. 对话捕获 DTO（M5.1）
+// ============================================================
+
+export type MessageRoleDto = "user" | "assistant" | "system" | "tool";
+
+export type ConversationStatusDto = "active" | "archived";
+
+export interface ConversationDto {
+  id: string;
+  title: string;
+  status: ConversationStatusDto;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MessageDto {
+  id: string;
+  conversationId: string;
+  role: MessageRoleDto;
+  content: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ConversationApi {
+  list(
+    query?: PaginationDto
+  ): Promise<IpcResult<PageDto<ConversationDto>>>;
+
+  create(input?: {
+    title?: string;
+  }): Promise<IpcResult<ConversationDto>>;
+
+  messages(
+    id: string,
+    query?: PaginationDto
+  ): Promise<IpcResult<PageDto<MessageDto>>>;
+
+  append(input: {
+    conversationId: string;
+    role: MessageRoleDto;
+    content: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<IpcResult<MessageDto>>;
+
+  archive(input: {
+    id: string;
+  }): Promise<IpcResult<ConversationDto>>;
 }

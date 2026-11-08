@@ -6,6 +6,7 @@ import {
   getDatabasePath
 } from "./database/connection";
 import { registerMemoryIpc } from "./ipc/memory.ipc";
+import { registerConversationIpc } from "./ipc/conversation.ipc";
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -53,6 +54,7 @@ app.whenReady().then(() => {
 
   // 记忆通道必须在数据库就绪后注册
   registerMemoryIpc(database);
+  registerConversationIpc(database);
 
   ipcMain.handle("shiyi:get-app-version", () => app.getVersion());
 

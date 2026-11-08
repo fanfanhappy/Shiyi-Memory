@@ -19,8 +19,8 @@ import {
   type MemoryAuditDto,
   type MemoryCreateDto,
   type MemoryDto,
-  type MemoryIpcError,
-  type MemoryIpcResult,
+  type IpcError,
+  type IpcResult,
   type MemoryLifecycleDto,
   type MemoryMetadataDto,
   type MemoryUpdateDto,
@@ -209,7 +209,7 @@ function listAudit(
 // 3. 结果信封与错误映射
 // ============================================================
 
-function handle<T>(work: () => T): MemoryIpcResult<T> {
+function handle<T>(work: () => T): IpcResult<T> {
   try {
     return { ok: true, data: work() };
   } catch (error) {
@@ -217,7 +217,7 @@ function handle<T>(work: () => T): MemoryIpcResult<T> {
   }
 }
 
-function toIpcError(error: unknown): MemoryIpcError {
+function toIpcError(error: unknown): IpcError {
   if (error instanceof MemoryValidationError) {
     return {
       code: "VALIDATION_ERROR",

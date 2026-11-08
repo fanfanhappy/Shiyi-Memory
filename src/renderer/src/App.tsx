@@ -130,6 +130,8 @@ function App() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState(initialMessages);
   const [darkMode, setDarkMode] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [chatStatus, setChatStatus] = useState<string | null>(null);
 
   const [recentMemories, setRecentMemories] = useState<MemoryDto[]>([]);
   const [memoryTotal, setMemoryTotal] = useState(0);
@@ -179,7 +181,7 @@ function App() {
     };
   }, [memoryRevision]);
 
-  function sendMessage(event: FormEvent<HTMLFormElement>) {
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const content = input.trim();
@@ -195,6 +197,40 @@ function App() {
     ]);
 
     setInput("");
+    setChatStatus("正在保存到本地对话记录…");
+
+    const api = window.shiyi?.conversation;
+
+    if (!api) {
+      setChatStatus("本地对话服务未连接");
+      return;
+    }
+
+    let targetId = conversationId;
+
+    if (!targetId) {
+      const created = await api.create({});
+
+      if (!created.ok) {
+        setChatStatus(`保存失败：${created.error.message}`);
+        return;
+      }
+
+      targetId = created.data.id;
+      setConversationId(targetId);
+    }
+
+    const appended = await api.append({
+      conversationId: targetId,
+      role: "user",
+      content
+    });
+
+    setChatStatus(
+      appended.ok
+        ? "已保存到本地对话记录"
+        : `保存失败：${appended.error.message}`
+    );
   }
 
   const activeLabel =
@@ -430,7 +466,8 @@ function App() {
                 </form>
 
                 <p className="composer-hint">
-                  当前为界面预览版本，AI 对话服务将在后续阶段接入。
+                  {chatStatus
+                    ?? "对话会自动保存到本地，AI 模型将在后续阶段接入。"}
                 </p>
               </div>
             </>
