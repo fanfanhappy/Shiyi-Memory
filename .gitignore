@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 dist/
 out/
 release/
@@ -9,9 +9,16 @@ release/
 *.sqlite
 *.sqlite3
 data/
+data-dev/
 user-data/
 backups/
 models/
 .cache/
 logs/
 *.log
+
+# Shiyi local development database
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
